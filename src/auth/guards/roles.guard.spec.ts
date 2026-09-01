@@ -14,31 +14,43 @@ function mockContext(user: unknown): ExecutionContext {
   } as unknown as ExecutionContext;
 }
 
-function mockReflector(requiredRoles: UserRole[] | undefined): Reflector {
+function mockReflector(options: {
+  roles?: UserRole[];
+  isPublic?: boolean;
+}): Reflector {
   return {
-    getAllAndOverride: vi.fn().mockReturnValue(requiredRoles),
+    getAllAndOverride: vi.fn((key: string) =>
+      key === 'roles' ? options.roles : options.isPublic,
+    ),
   } as unknown as Reflector;
 }
 
 describe('RolesGuard', () => {
   it('allows the request when the user role matches an allowed @Roles()', () => {
-    const guard = new RolesGuard(mockReflector([UserRole.ADMIN]));
+    const guard = new RolesGuard(mockReflector({ roles: [UserRole.ADMIN] }));
     const context = mockContext({ sub: '1', email: 'a@b.com', role: UserRole.ADMIN });
 
     expect(guard.canActivate(context)).toBe(true);
   });
 
   it('denies with false when the user role does not match @Roles()', () => {
-    const guard = new RolesGuard(mockReflector([UserRole.ADMIN]));
+    const guard = new RolesGuard(mockReflector({ roles: [UserRole.ADMIN] }));
     const context = mockContext({ sub: '1', email: 'a@b.com', role: UserRole.USER });
 
     expect(guard.canActivate(context)).toBe(false);
   });
 
   it('denies with false when no @Roles() metadata is present at all', () => {
-    const guard = new RolesGuard(mockReflector(undefined));
+    const guard = new RolesGuard(mockReflector({}));
     const context = mockContext({ sub: '1', email: 'a@b.com', role: UserRole.ADMIN });
 
     expect(guard.canActivate(context)).toBe(false);
+  });
+
+  it('allows a @Public() route even without @Roles() metadata', () => {
+    const guard = new RolesGuard(mockReflector({ isPublic: true }));
+    const context = mockContext(undefined);
+
+    expect(guard.canActivate(context)).toBe(true);
   });
 });
