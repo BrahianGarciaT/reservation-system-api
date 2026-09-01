@@ -60,7 +60,7 @@ describe('AuthService', () => {
       });
     });
 
-    it('returns an accessToken and the response-shaped user, signed with sub/email/role', async () => {
+    it('returns an accessToken and the response-shaped user, signed with sub/role only (no email/PII)', async () => {
       const usersService = createMockUsersService();
       const jwtService = createMockJwtService();
       const createdUser = buildUser({
@@ -80,9 +80,11 @@ describe('AuthService', () => {
 
       expect(jwtService.sign).toHaveBeenCalledWith({
         sub: 'user-3',
-        email: 'carol@example.com',
         role: UserRole.USER,
       });
+      const signedPayload = (jwtService.sign as ReturnType<typeof vi.fn>).mock
+        .calls[0]?.[0];
+      expect(signedPayload).not.toHaveProperty('email');
       expect(result).toEqual({
         accessToken: 'signed.jwt.token',
         user: {
@@ -118,9 +120,11 @@ describe('AuthService', () => {
 
       expect(jwtService.sign).toHaveBeenCalledWith({
         sub: 'user-4',
-        email: 'dave@example.com',
         role: UserRole.ADMIN,
       });
+      const signedPayload = (jwtService.sign as ReturnType<typeof vi.fn>).mock
+        .calls[0]?.[0];
+      expect(signedPayload).not.toHaveProperty('email');
       expect(result).toEqual({ accessToken: 'signed.jwt.token' });
     });
 

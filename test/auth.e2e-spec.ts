@@ -1,6 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import jwt from 'jsonwebtoken';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -121,6 +122,20 @@ describe('Auth (e2e)', () => {
 
       expect(response.status).toBe(200);
       expect(typeof response.body.accessToken).toBe('string');
+
+      // Regression proof for the JWT Claim Shape requirement: decode the
+      // real signed token and assert it carries exactly sub/role/iat/exp —
+      // no email or other PII.
+      const decoded = jwt.decode(response.body.accessToken, { json: true });
+      expect(decoded).not.toBeNull();
+      expect(Object.keys(decoded ?? {}).sort()).toEqual([
+        'exp',
+        'iat',
+        'role',
+        'sub',
+      ]);
+      expect(decoded).not.toHaveProperty('email');
+      expect(decoded?.role).toBe('user');
     });
 
     it('returns a generic 401 for an unknown email', async () => {

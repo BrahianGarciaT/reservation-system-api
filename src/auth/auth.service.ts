@@ -42,7 +42,6 @@ export class AuthService {
 
     const accessToken = this.signToken({
       sub: user.id,
-      email: user.email,
       role: user.role,
     });
 
@@ -63,7 +62,6 @@ export class AuthService {
 
     const accessToken = this.signToken({
       sub: user.id,
-      email: user.email,
       role: user.role,
     });
 
