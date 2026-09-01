@@ -39,6 +39,18 @@ describe('Auth (e2e)', () => {
     await dataSource.query('TRUNCATE TABLE "users"');
   });
 
+  describe('GET /health', () => {
+    it('is reachable without authentication now that global guards are wired', async () => {
+      const response = await request(app.getHttpServer()).get('/health');
+
+      // Proves HealthController's @Public() bypass survives the real
+      // globally-registered JwtAuthGuard/RolesGuard from AuthModule — a
+      // missing @Public() here would return 401, never a health payload.
+      expect(response.status).not.toBe(401);
+      expect(response.body).toHaveProperty('status');
+    });
+  });
+
   describe('POST /v1/auth/register', () => {
     it('creates a role: user account and never returns the password', async () => {
       const response = await request(app.getHttpServer())
