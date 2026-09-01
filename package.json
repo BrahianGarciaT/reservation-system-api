@@ -25,7 +25,8 @@
     "typeorm": "typeorm-ts-node-esm -d src/database/data-source.ts",
     "migration:generate": "pnpm typeorm migration:generate",
     "migration:run": "pnpm typeorm migration:run",
-    "migration:revert": "pnpm typeorm migration:revert"
+    "migration:revert": "pnpm typeorm migration:revert",
+    "seed:admin": "nest build && node dist/database/seeds/admin.seed.js"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
