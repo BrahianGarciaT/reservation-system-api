@@ -3,7 +3,9 @@ import { fileURLToPath } from 'node:url';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuthModule } from './auth/auth.module.js';
 import { HealthModule } from './health/health.module.js';
+import { UsersModule } from './users/users.module.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -11,6 +13,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     HealthModule,
+    UsersModule,
+    AuthModule,
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
