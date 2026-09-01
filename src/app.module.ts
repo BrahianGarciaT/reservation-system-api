@@ -2,8 +2,12 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module.js';
+import { CreateResourcesTables1788256817633 } from './database/migrations/1788256817633-CreateResourcesTables.js';
 import { CreateUsersTable1788233211392 } from './database/migrations/1788233211392-CreateUsersTable.js';
 import { HealthModule } from './health/health.module.js';
+import { ResourceSchedule } from './resources/resource-schedule.entity.js';
+import { Resource } from './resources/resource.entity.js';
+import { ResourcesModule } from './resources/resources.module.js';
 import { User } from './users/user.entity.js';
 import { UsersModule } from './users/users.module.js';
 
@@ -13,6 +17,7 @@ import { UsersModule } from './users/users.module.js';
     HealthModule,
     UsersModule,
     AuthModule,
+    ResourcesModule,
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -28,8 +33,11 @@ import { UsersModule } from './users/users.module.js';
         // boots from compiled dist output or directly from TS source (as
         // Vitest e2e specs do via unplugin-swc) — a glob only ever matched
         // compiled .js files and silently found nothing under Vitest.
-        entities: [User],
-        migrations: [CreateUsersTable1788233211392],
+        entities: [User, Resource, ResourceSchedule],
+        migrations: [
+          CreateUsersTable1788233211392,
+          CreateResourcesTables1788256817633,
+        ],
         synchronize: false,
         migrationsRun: true,
       }),
