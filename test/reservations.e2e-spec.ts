@@ -725,4 +725,57 @@ describe('Reservations (e2e)', () => {
       expect(stillThere.body.startsAt).toBe(`${MONDAY}T09:00:00.000Z`);
     });
   });
+
+  describe('Non-retroactive resource changes — existing reservations are unaffected', () => {
+    it('deactivating the resource afterwards leaves the reservation confirmed and unchanged', async () => {
+      const resourceId = await createMondayResource();
+      const created = await request(app.getHttpServer())
+        .post('/v1/reservations')
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send(reservationPayload({ resourceId }));
+      expect(created.status).toBe(201);
+
+      const deactivate = await request(app.getHttpServer())
+        .patch(`/v1/resources/${resourceId}/deactivate`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(deactivate.status).toBe(200);
+
+      const stillThere = await request(app.getHttpServer())
+        .get(`/v1/reservations/${created.body.id}`)
+        .set('Authorization', `Bearer ${ownerToken}`);
+
+      expect(stillThere.status).toBe(200);
+      expect(stillThere.body.status).toBe('confirmed');
+      expect(stillThere.body.startsAt).toBe(`${MONDAY}T09:00:00.000Z`);
+      expect(stillThere.body.endsAt).toBe(`${MONDAY}T10:00:00.000Z`);
+    });
+
+    it('replacing the resource schedule afterwards leaves the reservation confirmed and unchanged', async () => {
+      const resourceId = await createMondayResource();
+      const created = await request(app.getHttpServer())
+        .post('/v1/reservations')
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send(reservationPayload({ resourceId }));
+      expect(created.status).toBe(201);
+
+      // Replace the Monday window with a Tuesday-only window — the existing
+      // Monday 09:00-10:00 reservation no longer fits any current schedule.
+      const update = await request(app.getHttpServer())
+        .patch(`/v1/resources/${resourceId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          schedules: [{ dayOfWeek: 2, openTime: '09:00', closeTime: '18:00' }],
+        });
+      expect(update.status).toBe(200);
+
+      const stillThere = await request(app.getHttpServer())
+        .get(`/v1/reservations/${created.body.id}`)
+        .set('Authorization', `Bearer ${ownerToken}`);
+
+      expect(stillThere.status).toBe(200);
+      expect(stillThere.body.status).toBe('confirmed');
+      expect(stillThere.body.startsAt).toBe(`${MONDAY}T09:00:00.000Z`);
+      expect(stillThere.body.endsAt).toBe(`${MONDAY}T10:00:00.000Z`);
+    });
+  });
 });
