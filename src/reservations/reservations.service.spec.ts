@@ -34,6 +34,7 @@ function createMockReservationRepository(): Repository<Reservation> {
   return {
     findOne: vi.fn(),
     find: vi.fn(),
+    findAndCount: vi.fn(async () => [[], 0]),
     update: vi.fn(async () => ({ affected: 1 })),
   } as unknown as Repository<Reservation>;
 }
@@ -430,7 +431,6 @@ describe('ReservationsService', () => {
   describe('findAll', () => {
     it("forces where.userId to the caller's own sub for a USER, ignoring a foreign userId filter", async () => {
       const reservationRepository = createMockReservationRepository();
-      (reservationRepository.find as ReturnType<typeof vi.fn>).mockResolvedValue([]);
       const service = new ReservationsService(
         reservationRepository,
         createMockResourceRepository(),
@@ -439,7 +439,7 @@ describe('ReservationsService', () => {
 
       await service.findAll({ userId: 'user-2' }, ownerUser);
 
-      expect(reservationRepository.find).toHaveBeenCalledWith(
+      expect(reservationRepository.findAndCount).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ userId: 'user-1' }),
         }),
@@ -448,7 +448,6 @@ describe('ReservationsService', () => {
 
     it('honours the userId filter for ADMIN', async () => {
       const reservationRepository = createMockReservationRepository();
-      (reservationRepository.find as ReturnType<typeof vi.fn>).mockResolvedValue([]);
       const service = new ReservationsService(
         reservationRepository,
         createMockResourceRepository(),
@@ -457,7 +456,7 @@ describe('ReservationsService', () => {
 
       await service.findAll({ userId: 'user-2' }, adminUser);
 
-      expect(reservationRepository.find).toHaveBeenCalledWith(
+      expect(reservationRepository.findAndCount).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ userId: 'user-2' }),
         }),
@@ -466,7 +465,6 @@ describe('ReservationsService', () => {
 
     it('omits the userId filter for ADMIN when not provided (all users)', async () => {
       const reservationRepository = createMockReservationRepository();
-      (reservationRepository.find as ReturnType<typeof vi.fn>).mockResolvedValue([]);
       const service = new ReservationsService(
         reservationRepository,
         createMockResourceRepository(),
@@ -475,14 +473,13 @@ describe('ReservationsService', () => {
 
       await service.findAll({}, adminUser);
 
-      const callArgs = (reservationRepository.find as ReturnType<typeof vi.fn>).mock
-        .calls[0][0];
+      const callArgs = (reservationRepository.findAndCount as ReturnType<typeof vi.fn>)
+        .mock.calls[0][0];
       expect(callArgs.where.userId).toBeUndefined();
     });
 
     it('defaults to confirmed + upcoming when no filters are supplied', async () => {
       const reservationRepository = createMockReservationRepository();
-      (reservationRepository.find as ReturnType<typeof vi.fn>).mockResolvedValue([]);
       const service = new ReservationsService(
         reservationRepository,
         createMockResourceRepository(),
@@ -491,10 +488,52 @@ describe('ReservationsService', () => {
 
       await service.findAll({}, adminUser);
 
-      expect(reservationRepository.find).toHaveBeenCalledWith(
+      expect(reservationRepository.findAndCount).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ status: ReservationStatus.CONFIRMED }),
         }),
+      );
+    });
+
+    it('defaults page/limit to 1/20, applying skip/take and the returned total to meta', async () => {
+      const reservationRepository = createMockReservationRepository();
+      (
+        reservationRepository.findAndCount as ReturnType<typeof vi.fn>
+      ).mockResolvedValue([[baseReservation()], 45]);
+      const service = new ReservationsService(
+        reservationRepository,
+        createMockResourceRepository(),
+        createMockDataSource(createMockManager()),
+      );
+
+      const result = await service.findAll({}, adminUser);
+
+      expect(reservationRepository.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({ skip: 0, take: 20 }),
+      );
+      expect(result.meta).toEqual({
+        page: 1,
+        limit: 20,
+        total: 45,
+        totalPages: 3,
+      });
+    });
+
+    it('computes skip from page and limit', async () => {
+      const reservationRepository = createMockReservationRepository();
+      (
+        reservationRepository.findAndCount as ReturnType<typeof vi.fn>
+      ).mockResolvedValue([[], 0]);
+      const service = new ReservationsService(
+        reservationRepository,
+        createMockResourceRepository(),
+        createMockDataSource(createMockManager()),
+      );
+
+      await service.findAll({ page: 3, limit: 10 }, adminUser);
+
+      expect(reservationRepository.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({ skip: 20, take: 10 }),
       );
     });
   });

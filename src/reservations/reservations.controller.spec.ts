@@ -83,18 +83,20 @@ describe('ReservationsController', () => {
   });
 
   describe('findAll', () => {
-    it('delegates to service.findAll with the query and caller', async () => {
+    it('delegates to service.findAll with the query and caller, mapping data through toResponse', async () => {
       const service = createMockReservationsService();
-      (service.findAll as ReturnType<typeof vi.fn>).mockResolvedValue([
-        fakeReservation,
-      ]);
+      (service.findAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [fakeReservation],
+        meta: { page: 1, limit: 20, total: 1, totalPages: 1 },
+      });
       const controller = new ReservationsController(service);
       const query = { resourceId: 'resource-1' };
 
       const result = await controller.findAll(query, ownerUser);
 
       expect(service.findAll).toHaveBeenCalledWith(query, ownerUser);
-      expect(result).toHaveLength(1);
+      expect(result.data).toHaveLength(1);
+      expect(result.meta).toEqual({ page: 1, limit: 20, total: 1, totalPages: 1 });
     });
   });
 

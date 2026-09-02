@@ -1,7 +1,8 @@
 import { IsEnum, IsISO8601, IsOptional, IsUUID } from 'class-validator';
+import { PaginationQueryDto } from '../../common/dto/pagination-query.dto.js';
 import { ReservationStatus } from '../reservation-status.enum.js';
 
-export class FindReservationsQueryDto {
+export class FindReservationsQueryDto extends PaginationQueryDto {
   // Honoured for ADMIN; force-overwritten to the caller's own sub for USER
   // (silent override, never an error — see ReservationsService.findAll).
   @IsOptional()

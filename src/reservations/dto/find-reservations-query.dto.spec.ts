@@ -56,4 +56,32 @@ describe('FindReservationsQueryDto', () => {
 
     expect(errors.map((e) => e.property)).toContain('to');
   });
+
+  it('defaults page and limit when omitted', async () => {
+    const { dto, errors } = await validateInput({});
+
+    expect(errors).toHaveLength(0);
+    expect(dto.page).toBe(1);
+    expect(dto.limit).toBe(20);
+  });
+
+  it('transforms numeric query string page/limit into numbers', async () => {
+    const { dto, errors } = await validateInput({ page: '2', limit: '50' });
+
+    expect(errors).toHaveLength(0);
+    expect(dto.page).toBe(2);
+    expect(dto.limit).toBe(50);
+  });
+
+  it('rejects a limit above 100', async () => {
+    const errors = (await validateInput({ limit: '101' })).errors;
+
+    expect(errors.map((e) => e.property)).toContain('limit');
+  });
+
+  it('rejects a page below 1', async () => {
+    const errors = (await validateInput({ page: '0' })).errors;
+
+    expect(errors.map((e) => e.property)).toContain('page');
+  });
 });

@@ -15,6 +15,15 @@ import {
   Repository,
 } from 'typeorm';
 import type { JwtPayload } from '../auth/types/jwt-payload.type.js';
+import {
+  buildPaginationMeta,
+  type PaginatedResult,
+} from '../common/dto/paginated-response.dto.js';
+import {
+  getUtcMinutesOfDay,
+  isSameUtcCalendarDate,
+  parseTimeToMinutes,
+} from '../common/utils/date-time.util.js';
 import { Resource } from '../resources/resource.entity.js';
 import { UserRole } from '../users/user-role.enum.js';
 import type { CreateReservationDto } from './dto/create-reservation.dto.js';
@@ -47,23 +56,6 @@ function isExclusionViolation(error: unknown): boolean {
 
 function isCheckViolation(error: unknown): boolean {
   return getPostgresErrorCode(error) === POSTGRES_CHECK_VIOLATION_CODE;
-}
-
-function parseTimeToMinutes(value: string): number {
-  const [hours, minutes] = value.split(':').map(Number);
-  return hours * 60 + minutes;
-}
-
-function getUtcMinutesOfDay(date: Date): number {
-  return date.getUTCHours() * 60 + date.getUTCMinutes();
-}
-
-function isSameUtcCalendarDate(a: Date, b: Date): boolean {
-  return (
-    a.getUTCFullYear() === b.getUTCFullYear() &&
-    a.getUTCMonth() === b.getUTCMonth() &&
-    a.getUTCDate() === b.getUTCDate()
-  );
 }
 
 @Injectable()
@@ -103,7 +95,7 @@ export class ReservationsService {
   async findAll(
     query: FindReservationsQueryDto,
     user: JwtPayload,
-  ): Promise<Reservation[]> {
+  ): Promise<PaginatedResult<Reservation>> {
     // Ownership can never be client-supplied: a USER's `userId` filter
     // (foreign or own) is always overwritten with their own sub; only
     // ADMIN's `userId` filter is honoured (omitted = all users).
@@ -118,10 +110,20 @@ export class ReservationsService {
     if (query.resourceId !== undefined) where.resourceId = query.resourceId;
     if (query.to !== undefined) where.startsAt = LessThanOrEqual(new Date(query.to));
 
-    return this.reservationRepository.find({
+    // Defensive fallback to the DTO's own defaults: a caller that bypasses
+    // the validation pipe (e.g. a unit test) may pass an object with no
+    // page/limit at all.
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+
+    const [data, total] = await this.reservationRepository.findAndCount({
       where,
       order: { startsAt: 'ASC' },
+      skip: (page - 1) * limit,
+      take: limit,
     });
+
+    return { data, meta: buildPaginationMeta(total, page, limit) };
   }
 
   async findOne(id: string, user: JwtPayload): Promise<Reservation> {

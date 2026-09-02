@@ -462,8 +462,14 @@ describe('Reservations (e2e)', () => {
         .set('Authorization', `Bearer ${ownerToken}`);
 
       expect(response.status).toBe(200);
-      expect(response.body).toHaveLength(1);
-      expect(response.body[0].userId).toBe(ownerUser.id);
+      expect(response.body.data).toHaveLength(1);
+      expect(response.body.data[0].userId).toBe(ownerUser.id);
+      expect(response.body.meta).toEqual({
+        page: 1,
+        limit: 20,
+        total: 1,
+        totalPages: 1,
+      });
     });
 
     it("honours ADMIN's userId filter, and omitted means all users", async () => {
@@ -487,14 +493,15 @@ describe('Reservations (e2e)', () => {
         .get(`/v1/reservations?userId=${ownerUser.id}`)
         .set('Authorization', `Bearer ${adminToken}`);
       expect(filtered.status).toBe(200);
-      expect(filtered.body).toHaveLength(1);
-      expect(filtered.body[0].userId).toBe(ownerUser.id);
+      expect(filtered.body.data).toHaveLength(1);
+      expect(filtered.body.data[0].userId).toBe(ownerUser.id);
 
       const all = await request(app.getHttpServer())
         .get('/v1/reservations')
         .set('Authorization', `Bearer ${adminToken}`);
       expect(all.status).toBe(200);
-      expect(all.body).toHaveLength(2);
+      expect(all.body.data).toHaveLength(2);
+      expect(all.body.meta.total).toBe(2);
     });
 
     it('defaults to confirmed + upcoming, hiding a cancelled reservation', async () => {
@@ -522,8 +529,55 @@ describe('Reservations (e2e)', () => {
         .set('Authorization', `Bearer ${ownerToken}`);
 
       expect(response.status).toBe(200);
-      expect(response.body).toHaveLength(1);
-      expect(response.body[0].status).toBe('confirmed');
+      expect(response.body.data).toHaveLength(1);
+      expect(response.body.data[0].status).toBe('confirmed');
+    });
+
+    it('limit=1 returns only 1 item while meta.total reflects the real total', async () => {
+      const resourceId = await createMondayResource();
+      await request(app.getHttpServer())
+        .post('/v1/reservations')
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send(reservationPayload({ resourceId }));
+      await request(app.getHttpServer())
+        .post('/v1/reservations')
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send(
+          reservationPayload({
+            resourceId,
+            startsAt: `${MONDAY}T11:00:00.000Z`,
+            endsAt: `${MONDAY}T12:00:00.000Z`,
+          }),
+        );
+
+      const response = await request(app.getHttpServer())
+        .get('/v1/reservations?limit=1')
+        .set('Authorization', `Bearer ${ownerToken}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toHaveLength(1);
+      expect(response.body.meta).toEqual({
+        page: 1,
+        limit: 1,
+        total: 2,
+        totalPages: 2,
+      });
+    });
+
+    it('a page beyond the last one returns an empty data array', async () => {
+      const resourceId = await createMondayResource();
+      await request(app.getHttpServer())
+        .post('/v1/reservations')
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send(reservationPayload({ resourceId }));
+
+      const response = await request(app.getHttpServer())
+        .get('/v1/reservations?page=5&limit=10')
+        .set('Authorization', `Bearer ${ownerToken}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toEqual([]);
+      expect(response.body.meta.total).toBe(1);
     });
   });
 
