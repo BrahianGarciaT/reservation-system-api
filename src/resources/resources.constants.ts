@@ -1,1 +1,2 @@
 export const SLOT_INTERVAL_MINUTES = 30;
+export const MAX_AVAILABILITY_RANGE_DAYS = 90;

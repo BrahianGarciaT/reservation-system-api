@@ -12,6 +12,7 @@ function createMockResourcesService(): ResourcesService {
     findOne: vi.fn(),
     update: vi.fn(),
     deactivate: vi.fn(),
+    getAvailability: vi.fn(),
     toResponse: vi.fn((resource: Resource) => ({
       id: resource.id,
       name: resource.name,
@@ -48,27 +49,35 @@ describe('ResourcesController', () => {
   });
 
   describe('findAll', () => {
-    it('calls service.findAll(false) when includeInactive is not requested', async () => {
+    it('calls service.findAll(false, page, limit) when includeInactive is not requested', async () => {
       const service = createMockResourcesService();
-      (service.findAll as ReturnType<typeof vi.fn>).mockResolvedValue([
-        fakeResource,
-      ]);
+      (service.findAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [fakeResource],
+        meta: { page: 1, limit: 20, total: 1, totalPages: 1 },
+      });
       const controller = new ResourcesController(service);
 
-      const result = await controller.findAll({}, regularUser);
+      const result = await controller.findAll({ page: 1, limit: 20 }, regularUser);
 
-      expect(service.findAll).toHaveBeenCalledWith(false);
-      expect(result).toHaveLength(1);
+      expect(service.findAll).toHaveBeenCalledWith(false, 1, 20);
+      expect(result.data).toHaveLength(1);
+      expect(result.meta).toEqual({ page: 1, limit: 20, total: 1, totalPages: 1 });
     });
 
-    it('calls service.findAll(true) when an admin requests includeInactive', async () => {
+    it('calls service.findAll(true, page, limit) when an admin requests includeInactive', async () => {
       const service = createMockResourcesService();
-      (service.findAll as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      (service.findAll as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [],
+        meta: { page: 1, limit: 20, total: 0, totalPages: 0 },
+      });
       const controller = new ResourcesController(service);
 
-      await controller.findAll({ includeInactive: true }, adminUser);
+      await controller.findAll(
+        { includeInactive: true, page: 1, limit: 20 },
+        adminUser,
+      );
 
-      expect(service.findAll).toHaveBeenCalledWith(true);
+      expect(service.findAll).toHaveBeenCalledWith(true, 1, 20);
     });
 
     it('throws ForbiddenException when a non-admin requests includeInactive=true', async () => {
@@ -76,7 +85,10 @@ describe('ResourcesController', () => {
       const controller = new ResourcesController(service);
 
       await expect(
-        controller.findAll({ includeInactive: true }, regularUser),
+        controller.findAll(
+          { includeInactive: true, page: 1, limit: 20 },
+          regularUser,
+        ),
       ).rejects.toBeInstanceOf(ForbiddenException);
       expect(service.findAll).not.toHaveBeenCalled();
     });
@@ -125,6 +137,34 @@ describe('ResourcesController', () => {
 
       expect(service.deactivate).toHaveBeenCalledWith('resource-1');
       expect(result).toEqual({ id: 'resource-1', name: 'Room A' });
+    });
+  });
+
+  describe('getAvailability', () => {
+    it('delegates to service.getAvailability with the id and query range', async () => {
+      const service = createMockResourcesService();
+      const availability = {
+        resourceId: 'resource-1',
+        from: new Date('2026-02-01T00:00:00.000Z'),
+        to: new Date('2026-02-02T00:00:00.000Z'),
+        freeIntervals: [],
+      };
+      (service.getAvailability as ReturnType<typeof vi.fn>).mockResolvedValue(
+        availability,
+      );
+      const controller = new ResourcesController(service);
+
+      const result = await controller.getAvailability('resource-1', {
+        from: '2026-02-01T00:00:00.000Z',
+        to: '2026-02-02T00:00:00.000Z',
+      });
+
+      expect(service.getAvailability).toHaveBeenCalledWith(
+        'resource-1',
+        '2026-02-01T00:00:00.000Z',
+        '2026-02-02T00:00:00.000Z',
+      );
+      expect(result).toEqual(availability);
     });
   });
 });

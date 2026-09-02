@@ -1,5 +1,7 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import type { DataSource, Repository } from 'typeorm';
+import { ReservationStatus } from '../reservations/reservation-status.enum.js';
+import type { Reservation } from '../reservations/reservation.entity.js';
 import { Resource } from './resource.entity.js';
 import { ResourceSchedule } from './resource-schedule.entity.js';
 import { ResourcesService } from './resources.service.js';
@@ -26,12 +28,19 @@ function createMockResourceRepository(): Repository<Resource> {
   return {
     findOne: vi.fn(),
     find: vi.fn(),
+    findAndCount: vi.fn(async () => [[], 0]),
     update: vi.fn(async () => ({ affected: 1 })),
   } as unknown as Repository<Resource>;
 }
 
 function createMockScheduleRepository(): Repository<ResourceSchedule> {
   return {} as unknown as Repository<ResourceSchedule>;
+}
+
+function createMockReservationRepository(): Repository<Reservation> {
+  return {
+    find: vi.fn(async () => []),
+  } as unknown as Repository<Reservation>;
 }
 
 const baseResource = (overrides: Partial<Resource> = {}): Resource =>
@@ -72,6 +81,7 @@ describe('ResourcesService', () => {
       const service = new ResourcesService(
         resourceRepository,
         createMockScheduleRepository(),
+        createMockReservationRepository(),
         dataSource,
       );
 
@@ -112,6 +122,7 @@ describe('ResourcesService', () => {
       const service = new ResourcesService(
         resourceRepository,
         createMockScheduleRepository(),
+        createMockReservationRepository(),
         dataSource,
       );
 
@@ -134,6 +145,7 @@ describe('ResourcesService', () => {
       const service = new ResourcesService(
         createMockResourceRepository(),
         createMockScheduleRepository(),
+        createMockReservationRepository(),
         dataSource,
       );
 
@@ -154,6 +166,7 @@ describe('ResourcesService', () => {
       const service = new ResourcesService(
         createMockResourceRepository(),
         createMockScheduleRepository(),
+        createMockReservationRepository(),
         dataSource,
       );
 
@@ -177,6 +190,7 @@ describe('ResourcesService', () => {
       const service = new ResourcesService(
         resourceRepository,
         createMockScheduleRepository(),
+        createMockReservationRepository(),
         dataSource,
       );
 
@@ -193,41 +207,65 @@ describe('ResourcesService', () => {
   describe('findAll', () => {
     it('filters to isActive: true by default', async () => {
       const resourceRepository = createMockResourceRepository();
-      (resourceRepository.find as ReturnType<typeof vi.fn>).mockResolvedValue([
-        baseResource(),
+      (resourceRepository.findAndCount as ReturnType<typeof vi.fn>).mockResolvedValue([
+        [baseResource()],
+        1,
       ]);
       const service = new ResourcesService(
         resourceRepository,
         createMockScheduleRepository(),
+        createMockReservationRepository(),
         createMockDataSource(createMockManager()),
       );
 
-      const result = await service.findAll(false);
+      const result = await service.findAll(false, 1, 20);
 
-      expect(resourceRepository.find).toHaveBeenCalledWith(
+      expect(resourceRepository.findAndCount).toHaveBeenCalledWith(
         expect.objectContaining({ where: { isActive: true } }),
       );
-      expect(result).toHaveLength(1);
+      expect(result.data).toHaveLength(1);
+      expect(result.meta).toEqual({ page: 1, limit: 20, total: 1, totalPages: 1 });
     });
 
     it('returns both active and inactive resources when includeInactive is true', async () => {
       const resourceRepository = createMockResourceRepository();
-      (resourceRepository.find as ReturnType<typeof vi.fn>).mockResolvedValue([
-        baseResource({ isActive: true }),
-        baseResource({ id: 'resource-2', isActive: false }),
+      (resourceRepository.findAndCount as ReturnType<typeof vi.fn>).mockResolvedValue([
+        [baseResource({ isActive: true }), baseResource({ id: 'resource-2', isActive: false })],
+        2,
       ]);
       const service = new ResourcesService(
         resourceRepository,
         createMockScheduleRepository(),
+        createMockReservationRepository(),
         createMockDataSource(createMockManager()),
       );
 
-      const result = await service.findAll(true);
+      const result = await service.findAll(true, 1, 20);
 
-      expect(resourceRepository.find).toHaveBeenCalledWith(
+      expect(resourceRepository.findAndCount).toHaveBeenCalledWith(
         expect.objectContaining({ where: {} }),
       );
-      expect(result).toHaveLength(2);
+      expect(result.data).toHaveLength(2);
+    });
+
+    it('applies skip/take derived from page and limit', async () => {
+      const resourceRepository = createMockResourceRepository();
+      (resourceRepository.findAndCount as ReturnType<typeof vi.fn>).mockResolvedValue([
+        [],
+        0,
+      ]);
+      const service = new ResourcesService(
+        resourceRepository,
+        createMockScheduleRepository(),
+        createMockReservationRepository(),
+        createMockDataSource(createMockManager()),
+      );
+
+      await service.findAll(false, 3, 10);
+
+      expect(resourceRepository.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({ skip: 20, take: 10 }),
+      );
     });
   });
 
@@ -243,6 +281,7 @@ describe('ResourcesService', () => {
       const service = new ResourcesService(
         resourceRepository,
         createMockScheduleRepository(),
+        createMockReservationRepository(),
         createMockDataSource(createMockManager()),
       );
 
@@ -260,6 +299,7 @@ describe('ResourcesService', () => {
       const service = new ResourcesService(
         resourceRepository,
         createMockScheduleRepository(),
+        createMockReservationRepository(),
         createMockDataSource(createMockManager()),
       );
 
@@ -280,6 +320,7 @@ describe('ResourcesService', () => {
       const service = new ResourcesService(
         resourceRepository,
         createMockScheduleRepository(),
+        createMockReservationRepository(),
         dataSource,
       );
 
@@ -304,6 +345,7 @@ describe('ResourcesService', () => {
       const service = new ResourcesService(
         resourceRepository,
         createMockScheduleRepository(),
+        createMockReservationRepository(),
         dataSource,
       );
 
@@ -332,6 +374,7 @@ describe('ResourcesService', () => {
       const service = new ResourcesService(
         resourceRepository,
         createMockScheduleRepository(),
+        createMockReservationRepository(),
         dataSource,
       );
 
@@ -354,6 +397,7 @@ describe('ResourcesService', () => {
       const service = new ResourcesService(
         createMockResourceRepository(),
         createMockScheduleRepository(),
+        createMockReservationRepository(),
         dataSource,
       );
 
@@ -381,6 +425,7 @@ describe('ResourcesService', () => {
       const service = new ResourcesService(
         resourceRepository,
         createMockScheduleRepository(),
+        createMockReservationRepository(),
         dataSource,
       );
 
@@ -401,6 +446,7 @@ describe('ResourcesService', () => {
       const service = new ResourcesService(
         resourceRepository,
         createMockScheduleRepository(),
+        createMockReservationRepository(),
         createMockDataSource(createMockManager()),
       );
 
@@ -420,6 +466,7 @@ describe('ResourcesService', () => {
       const service = new ResourcesService(
         resourceRepository,
         createMockScheduleRepository(),
+        createMockReservationRepository(),
         createMockDataSource(createMockManager()),
       );
 
@@ -434,6 +481,7 @@ describe('ResourcesService', () => {
       const service = new ResourcesService(
         createMockResourceRepository(),
         createMockScheduleRepository(),
+        createMockReservationRepository(),
         createMockDataSource(createMockManager()),
       );
       const resource = baseResource({
@@ -474,6 +522,7 @@ describe('ResourcesService', () => {
       const service = new ResourcesService(
         createMockResourceRepository(),
         createMockScheduleRepository(),
+        createMockReservationRepository(),
         createMockDataSource(createMockManager()),
       );
       const resource = baseResource({ schedules: [] });
@@ -481,6 +530,125 @@ describe('ResourcesService', () => {
       const response = service.toResponse(resource);
 
       expect(response.schedules).toEqual([]);
+    });
+  });
+
+  describe('getAvailability', () => {
+    it('throws NotFoundException when the resource does not exist', async () => {
+      const resourceRepository = createMockResourceRepository();
+      (resourceRepository.findOne as ReturnType<typeof vi.fn>).mockResolvedValue(
+        null,
+      );
+      const service = new ResourcesService(
+        resourceRepository,
+        createMockScheduleRepository(),
+        createMockReservationRepository(),
+        createMockDataSource(createMockManager()),
+      );
+
+      await expect(
+        service.getAvailability(
+          'missing-id',
+          '2026-02-01T00:00:00.000Z',
+          '2026-02-02T00:00:00.000Z',
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('throws BadRequestException when to is not after from', async () => {
+      const service = new ResourcesService(
+        createMockResourceRepository(),
+        createMockScheduleRepository(),
+        createMockReservationRepository(),
+        createMockDataSource(createMockManager()),
+      );
+
+      await expect(
+        service.getAvailability(
+          'resource-1',
+          '2026-02-10T00:00:00.000Z',
+          '2026-02-09T00:00:00.000Z',
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('throws BadRequestException when the range exceeds MAX_AVAILABILITY_RANGE_DAYS', async () => {
+      const service = new ResourcesService(
+        createMockResourceRepository(),
+        createMockScheduleRepository(),
+        createMockReservationRepository(),
+        createMockDataSource(createMockManager()),
+      );
+
+      await expect(
+        service.getAvailability(
+          'resource-1',
+          '2026-01-01T00:00:00.000Z',
+          '2026-06-01T00:00:00.000Z',
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('returns an empty freeIntervals array for an inactive resource without querying reservations', async () => {
+      const resourceRepository = createMockResourceRepository();
+      (resourceRepository.findOne as ReturnType<typeof vi.fn>).mockResolvedValue(
+        baseResource({ isActive: false }),
+      );
+      const reservationRepository = createMockReservationRepository();
+      const service = new ResourcesService(
+        resourceRepository,
+        createMockScheduleRepository(),
+        reservationRepository,
+        createMockDataSource(createMockManager()),
+      );
+
+      const result = await service.getAvailability(
+        'resource-1',
+        '2026-02-01T00:00:00.000Z',
+        '2026-02-02T00:00:00.000Z',
+      );
+
+      expect(result.freeIntervals).toEqual([]);
+      expect(reservationRepository.find).not.toHaveBeenCalled();
+    });
+
+    it('queries reservations filtered to CONFIRMED only, so cancelled reservations never reduce availability', async () => {
+      const resourceRepository = createMockResourceRepository();
+      (resourceRepository.findOne as ReturnType<typeof vi.fn>).mockResolvedValue(
+        baseResource({
+          schedules: [
+            {
+              id: 'sched-1',
+              resourceId: 'resource-1',
+              dayOfWeek: 1,
+              openTime: '09:00',
+              closeTime: '17:00',
+            } as ResourceSchedule,
+          ],
+        }),
+      );
+      const reservationRepository = createMockReservationRepository();
+      const service = new ResourcesService(
+        resourceRepository,
+        createMockScheduleRepository(),
+        reservationRepository,
+        createMockDataSource(createMockManager()),
+      );
+
+      await service.getAvailability(
+        'resource-1',
+        '2026-02-01T00:00:00.000Z',
+        '2026-02-02T00:00:00.000Z',
+      );
+
+      expect(reservationRepository.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            resourceId: 'resource-1',
+            status: ReservationStatus.CONFIRMED,
+          }),
+        }),
+      );
     });
   });
 });

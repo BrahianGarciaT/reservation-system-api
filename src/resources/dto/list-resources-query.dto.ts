@@ -3,6 +3,7 @@
 import 'reflect-metadata';
 import { Transform } from 'class-transformer';
 import { IsBoolean, IsOptional } from 'class-validator';
+import { PaginationQueryDto } from '../../common/dto/pagination-query.dto.js';
 
 function toOptionalBoolean(value: unknown): unknown {
   if (value === 'true') return true;
@@ -10,7 +11,7 @@ function toOptionalBoolean(value: unknown): unknown {
   return value;
 }
 
-export class ListResourcesQueryDto {
+export class ListResourcesQueryDto extends PaginationQueryDto {
   @IsOptional()
   @Transform(({ value }) => toOptionalBoolean(value))
   @IsBoolean()

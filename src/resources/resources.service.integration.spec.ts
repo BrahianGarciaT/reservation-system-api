@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { DataSource, Repository } from 'typeorm';
+import { Reservation } from '../reservations/reservation.entity.js';
+import { User } from '../users/user.entity.js';
 import { ResourceSchedule } from './resource-schedule.entity.js';
 import { Resource } from './resource.entity.js';
 import { ResourcesService } from './resources.service.js';
@@ -13,6 +15,7 @@ describe('ResourcesService (integration)', () => {
   let dataSource: DataSource;
   let resourceRepository: Repository<Resource>;
   let scheduleRepository: Repository<ResourceSchedule>;
+  let reservationRepository: Repository<Reservation>;
   let service: ResourcesService;
 
   beforeAll(async () => {
@@ -23,15 +26,17 @@ describe('ResourcesService (integration)', () => {
       username: process.env.DB_USERNAME,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
-      entities: [Resource, ResourceSchedule],
+      entities: [Resource, ResourceSchedule, Reservation, User],
       synchronize: false,
     });
     await dataSource.initialize();
     resourceRepository = dataSource.getRepository(Resource);
     scheduleRepository = dataSource.getRepository(ResourceSchedule);
+    reservationRepository = dataSource.getRepository(Reservation);
     service = new ResourcesService(
       resourceRepository,
       scheduleRepository,
+      reservationRepository,
       dataSource,
     );
   });

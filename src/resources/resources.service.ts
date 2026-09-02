@@ -5,13 +5,21 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, LessThan, MoreThan, Repository } from 'typeorm';
+import {
+  buildPaginationMeta,
+  type PaginatedResult,
+} from '../common/dto/paginated-response.dto.js';
+import { ReservationStatus } from '../reservations/reservation-status.enum.js';
+import { Reservation } from '../reservations/reservation.entity.js';
 import type { CreateResourceDto } from './dto/create-resource.dto.js';
+import type { FreeInterval } from './dto/resource-availability-response.dto.js';
 import type { ResourceResponseDto } from './dto/resource-response.dto.js';
 import type { UpdateResourceDto } from './dto/update-resource.dto.js';
+import { computeFreeIntervals } from './resource-availability.util.js';
 import { ResourceSchedule } from './resource-schedule.entity.js';
 import { Resource } from './resource.entity.js';
-import { SLOT_INTERVAL_MINUTES } from './resources.constants.js';
+import { MAX_AVAILABILITY_RANGE_DAYS, SLOT_INTERVAL_MINUTES } from './resources.constants.js';
 
 const POSTGRES_EXCLUSION_VIOLATION_CODE = '23P01';
 const POSTGRES_CHECK_VIOLATION_CODE = '23514';
@@ -52,6 +60,8 @@ export class ResourcesService {
     private readonly resourceRepository: Repository<Resource>,
     @InjectRepository(ResourceSchedule)
     private readonly scheduleRepository: Repository<ResourceSchedule>,
+    @InjectRepository(Reservation)
+    private readonly reservationRepository: Repository<Reservation>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -86,11 +96,20 @@ export class ResourcesService {
     return this.findOne(resourceId);
   }
 
-  async findAll(includeInactive: boolean): Promise<Resource[]> {
-    return this.resourceRepository.find({
+  async findAll(
+    includeInactive: boolean,
+    page: number,
+    limit: number,
+  ): Promise<PaginatedResult<Resource>> {
+    const [data, total] = await this.resourceRepository.findAndCount({
       where: includeInactive ? {} : { isActive: true },
       relations: { schedules: true },
+      order: { createdAt: 'ASC' },
+      skip: (page - 1) * limit,
+      take: limit,
     });
+
+    return { data, meta: buildPaginationMeta(total, page, limit) };
   }
 
   async findOne(id: string): Promise<Resource> {
@@ -146,6 +165,52 @@ export class ResourcesService {
     await this.findOne(id);
     await this.resourceRepository.update(id, { isActive: false });
     return this.findOne(id);
+  }
+
+  async getAvailability(
+    id: string,
+    from: string,
+    to: string,
+  ): Promise<{ resourceId: string; from: Date; to: Date; freeIntervals: FreeInterval[] }> {
+    const fromDate = new Date(from);
+    const toDate = new Date(to);
+
+    if (!(toDate.getTime() > fromDate.getTime())) {
+      throw new BadRequestException('to must be after from');
+    }
+
+    const rangeDays = (toDate.getTime() - fromDate.getTime()) / (24 * 60 * 60 * 1000);
+    if (rangeDays > MAX_AVAILABILITY_RANGE_DAYS) {
+      throw new BadRequestException(
+        `Availability range cannot exceed ${MAX_AVAILABILITY_RANGE_DAYS} days`,
+      );
+    }
+
+    const resource = await this.findOne(id);
+
+    // An inactive resource can never be booked (assertBookable rejects it in
+    // ReservationsService), so it has no free intervals regardless of schedule.
+    if (!resource.isActive) {
+      return { resourceId: id, from: fromDate, to: toDate, freeIntervals: [] };
+    }
+
+    const confirmedReservations = await this.reservationRepository.find({
+      where: {
+        resourceId: id,
+        status: ReservationStatus.CONFIRMED,
+        startsAt: LessThan(toDate),
+        endsAt: MoreThan(fromDate),
+      },
+    });
+
+    const freeIntervals = computeFreeIntervals(
+      resource.schedules ?? [],
+      confirmedReservations,
+      fromDate,
+      toDate,
+    ).map((interval) => ({ startsAt: interval.start, endsAt: interval.end }));
+
+    return { resourceId: id, from: fromDate, to: toDate, freeIntervals };
   }
 
   toResponse(resource: Resource): ResourceResponseDto {
