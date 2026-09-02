@@ -7,6 +7,7 @@ import { CreateResourcesTables1788256817633 } from './database/migrations/178825
 import { CreateUsersTable1788233211392 } from './database/migrations/1788233211392-CreateUsersTable.js';
 import { HealthModule } from './health/health.module.js';
 import { Reservation } from './reservations/reservation.entity.js';
+import { ReservationsModule } from './reservations/reservations.module.js';
 import { ResourceSchedule } from './resources/resource-schedule.entity.js';
 import { Resource } from './resources/resource.entity.js';
 import { ResourcesModule } from './resources/resources.module.js';
@@ -20,6 +21,7 @@ import { UsersModule } from './users/users.module.js';
     UsersModule,
     AuthModule,
     ResourcesModule,
+    ReservationsModule,
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
