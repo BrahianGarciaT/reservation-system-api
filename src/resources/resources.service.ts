@@ -13,7 +13,7 @@ import {
 import { ReservationStatus } from '../reservations/reservation-status.enum.js';
 import { Reservation } from '../reservations/reservation.entity.js';
 import type { CreateResourceDto } from './dto/create-resource.dto.js';
-import type { FreeInterval } from './dto/resource-availability-response.dto.js';
+import type { FreeIntervalDto } from './dto/resource-availability-response.dto.js';
 import type { ResourceResponseDto } from './dto/resource-response.dto.js';
 import type { UpdateResourceDto } from './dto/update-resource.dto.js';
 import { computeFreeIntervals } from './resource-availability.util.js';
@@ -171,7 +171,7 @@ export class ResourcesService {
     id: string,
     from: string,
     to: string,
-  ): Promise<{ resourceId: string; from: Date; to: Date; freeIntervals: FreeInterval[] }> {
+  ): Promise<{ resourceId: string; from: Date; to: Date; freeIntervals: FreeIntervalDto[] }> {
     const fromDate = new Date(from);
     const toDate = new Date(to);
 

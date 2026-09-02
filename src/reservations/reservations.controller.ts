@@ -10,7 +10,17 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiConflictResponse,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
 import type { JwtPayload } from '../auth/types/jwt-payload.type.js';
@@ -25,12 +35,17 @@ import { ReservationsService } from './reservations.service.js';
 
 @ApiTags('reservations')
 @ApiBearerAuth()
+@ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
 @Controller('reservations')
 export class ReservationsController {
   constructor(private readonly reservationsService: ReservationsService) {}
 
   @Roles(UserRole.ADMIN, UserRole.USER)
   @Post()
+  @ApiOperation({ summary: 'Create a reservation' })
+  @ApiNotFoundResponse({ description: 'Resource not found' })
+  @ApiBadRequestResponse({ description: 'Reservation violates booking rules' })
+  @ApiConflictResponse({ description: 'Resource is already booked for that time range' })
   async create(
     @Body() dto: CreateReservationDto,
     @CurrentUser() user: JwtPayload,
@@ -41,7 +56,9 @@ export class ReservationsController {
 
   @Roles(UserRole.ADMIN, UserRole.USER)
   @Get()
+  @ApiOperation({ summary: 'List reservations' })
   @ApiPaginatedResponse(ReservationResponseDto)
+  @ApiBadRequestResponse({ description: 'to must be after from' })
   async findAll(
     @Query() query: FindReservationsQueryDto,
     @CurrentUser() user: JwtPayload,
@@ -57,6 +74,10 @@ export class ReservationsController {
 
   @Roles(UserRole.ADMIN, UserRole.USER)
   @Get(':id')
+  @ApiOperation({ summary: 'Get a reservation by id' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiNotFoundResponse({ description: 'Reservation not found' })
+  @ApiForbiddenResponse({ description: 'Caller does not own this reservation' })
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: JwtPayload,
@@ -68,6 +89,10 @@ export class ReservationsController {
   @Roles(UserRole.ADMIN, UserRole.USER)
   @HttpCode(HttpStatus.OK)
   @Patch(':id/cancel')
+  @ApiOperation({ summary: 'Cancel a reservation' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiNotFoundResponse({ description: 'Reservation not found' })
+  @ApiForbiddenResponse({ description: 'Caller does not own this reservation' })
   async cancel(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: JwtPayload,
@@ -79,6 +104,12 @@ export class ReservationsController {
   @Roles(UserRole.ADMIN, UserRole.USER)
   @HttpCode(HttpStatus.OK)
   @Patch(':id/reschedule')
+  @ApiOperation({ summary: 'Reschedule a reservation' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiNotFoundResponse({ description: 'Reservation not found' })
+  @ApiForbiddenResponse({ description: 'Caller does not own this reservation' })
+  @ApiBadRequestResponse({ description: 'Reservation cannot be rescheduled or violates booking rules' })
+  @ApiConflictResponse({ description: 'Resource is already booked for that time range' })
   async reschedule(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: RescheduleReservationDto,

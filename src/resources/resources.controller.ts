@@ -11,7 +11,17 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiConflictResponse,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
 import type { JwtPayload } from '../auth/types/jwt-payload.type.js';
@@ -28,12 +38,17 @@ import { ResourcesService } from './resources.service.js';
 
 @ApiTags('resources')
 @ApiBearerAuth()
+@ApiUnauthorizedResponse({ description: 'Missing or invalid bearer token' })
 @Controller('resources')
 export class ResourcesController {
   constructor(private readonly resourcesService: ResourcesService) {}
 
   @Roles(UserRole.ADMIN)
   @Post()
+  @ApiOperation({ summary: 'Create a new resource' })
+  @ApiForbiddenResponse({ description: 'Caller is not an admin' })
+  @ApiBadRequestResponse({ description: 'Invalid booking-minutes configuration' })
+  @ApiConflictResponse({ description: 'Schedule windows overlap for the same day' })
   async create(@Body() dto: CreateResourceDto): Promise<ResourceResponseDto> {
     const resource = await this.resourcesService.create(dto);
     return this.resourcesService.toResponse(resource);
@@ -41,7 +56,9 @@ export class ResourcesController {
 
   @Roles(UserRole.ADMIN, UserRole.USER)
   @Get()
+  @ApiOperation({ summary: 'List resources' })
   @ApiPaginatedResponse(ResourceResponseDto)
+  @ApiForbiddenResponse({ description: 'Only admins may request includeInactive=true' })
   async findAll(
     @Query() query: ListResourcesQueryDto,
     @CurrentUser() user: JwtPayload,
@@ -67,6 +84,9 @@ export class ResourcesController {
 
   @Roles(UserRole.ADMIN, UserRole.USER)
   @Get(':id')
+  @ApiOperation({ summary: 'Get a resource by id' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiNotFoundResponse({ description: 'Resource not found' })
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<ResourceResponseDto> {
@@ -76,6 +96,10 @@ export class ResourcesController {
 
   @Roles(UserRole.ADMIN, UserRole.USER)
   @Get(':id/availability')
+  @ApiOperation({ summary: 'Get free time intervals for a resource' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiNotFoundResponse({ description: 'Resource not found' })
+  @ApiBadRequestResponse({ description: 'Invalid date range' })
   async getAvailability(
     @Param('id', ParseUUIDPipe) id: string,
     @Query() query: ResourceAvailabilityQueryDto,
@@ -85,6 +109,12 @@ export class ResourcesController {
 
   @Roles(UserRole.ADMIN)
   @Patch(':id')
+  @ApiOperation({ summary: 'Update a resource' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiForbiddenResponse({ description: 'Caller is not an admin' })
+  @ApiNotFoundResponse({ description: 'Resource not found' })
+  @ApiBadRequestResponse({ description: 'Invalid booking-minutes configuration' })
+  @ApiConflictResponse({ description: 'Schedule windows overlap for the same day' })
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateResourceDto,
@@ -96,6 +126,10 @@ export class ResourcesController {
   @Roles(UserRole.ADMIN)
   @HttpCode(HttpStatus.OK)
   @Patch(':id/deactivate')
+  @ApiOperation({ summary: 'Deactivate a resource' })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiForbiddenResponse({ description: 'Caller is not an admin' })
+  @ApiNotFoundResponse({ description: 'Resource not found' })
   async deactivate(
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<ResourceResponseDto> {
