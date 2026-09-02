@@ -101,9 +101,14 @@ export class ReservationsService {
     // ADMIN's `userId` filter is honoured (omitted = all users).
     const effectiveUserId = user.role === UserRole.ADMIN ? query.userId : user.sub;
 
+    const from = query.from ? new Date(query.from) : new Date();
+    if (query.to !== undefined && !(new Date(query.to).getTime() > from.getTime())) {
+      throw new BadRequestException('to must be after from');
+    }
+
     const where: FindOptionsWhere<Reservation> = {
       status: query.status ?? ReservationStatus.CONFIRMED,
-      endsAt: MoreThanOrEqual(query.from ? new Date(query.from) : new Date()),
+      endsAt: MoreThanOrEqual(from),
     };
 
     if (effectiveUserId !== undefined) where.userId = effectiveUserId;
@@ -156,6 +161,10 @@ export class ReservationsService {
     user: JwtPayload,
   ): Promise<Reservation> {
     const reservation = await this.findOne(id, user);
+
+    if (reservation.status === ReservationStatus.CANCELLED) {
+      throw new BadRequestException('Cannot reschedule a cancelled reservation');
+    }
 
     try {
       await this.dataSource.transaction(async (manager) => {

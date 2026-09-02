@@ -536,6 +536,39 @@ describe('ReservationsService', () => {
         expect.objectContaining({ skip: 20, take: 10 }),
       );
     });
+
+    it('throws BadRequestException when to is not after the explicit from', async () => {
+      const reservationRepository = createMockReservationRepository();
+      const service = new ReservationsService(
+        reservationRepository,
+        createMockResourceRepository(),
+        createMockDataSource(createMockManager()),
+      );
+
+      await expect(
+        service.findAll(
+          { from: '2027-01-10T00:00:00.000Z', to: '2027-01-01T00:00:00.000Z' },
+          adminUser,
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(reservationRepository.findAndCount).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when to is in the past and from is omitted (defaults to now)', async () => {
+      const reservationRepository = createMockReservationRepository();
+      const service = new ReservationsService(
+        reservationRepository,
+        createMockResourceRepository(),
+        createMockDataSource(createMockManager()),
+      );
+      const past = new Date();
+      past.setUTCDate(past.getUTCDate() - 1);
+
+      await expect(
+        service.findAll({ to: past.toISOString() }, adminUser),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(reservationRepository.findAndCount).not.toHaveBeenCalled();
+    });
   });
 
   describe('findOne / assertOwnerOrAdmin', () => {
@@ -735,6 +768,30 @@ describe('ReservationsService', () => {
           ownerUser,
         ),
       ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('throws BadRequestException when rescheduling a cancelled reservation, without touching the transaction', async () => {
+      const manager = createMockManager();
+      const dataSource = createMockDataSource(manager);
+      const reservationRepository = createMockReservationRepository();
+      (reservationRepository.findOne as ReturnType<typeof vi.fn>).mockResolvedValue(
+        baseReservation({ userId: 'user-1', status: ReservationStatus.CANCELLED }),
+      );
+      const service = new ReservationsService(
+        reservationRepository,
+        createMockResourceRepository(),
+        dataSource,
+      );
+      const { startsAt, endsAt } = futureWindow(60, 9, 10);
+
+      await expect(
+        service.reschedule(
+          'reservation-1',
+          { startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString() },
+          ownerUser,
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(dataSource.transaction).not.toHaveBeenCalled();
     });
   });
 
