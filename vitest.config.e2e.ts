@@ -12,5 +12,13 @@ export default defineConfig({
     globals: true,
     root: './',
     include: ['**/*.e2e-spec.ts'],
+    // Every e2e spec shares one real Postgres database and TRUNCATEs its
+    // own tables between tests; running spec files in parallel workers lets
+    // one file's TRUNCATE CASCADE race another file's in-flight assertions
+    // (e.g. `resources.e2e-spec.ts`'s "resources" CASCADE would delete
+    // in-flight `reservations.e2e-spec.ts` rows). Sequential file execution
+    // keeps the shared-DB e2e specs deterministic, mirroring the unit/
+    // integration config.
+    fileParallelism: false,
   },
 });
