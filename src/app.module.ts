@@ -2,9 +2,11 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module.js';
+import { CreateReservationsTable1788309117211 } from './database/migrations/1788309117211-CreateReservationsTable.js';
 import { CreateResourcesTables1788256817633 } from './database/migrations/1788256817633-CreateResourcesTables.js';
 import { CreateUsersTable1788233211392 } from './database/migrations/1788233211392-CreateUsersTable.js';
 import { HealthModule } from './health/health.module.js';
+import { Reservation } from './reservations/reservation.entity.js';
 import { ResourceSchedule } from './resources/resource-schedule.entity.js';
 import { Resource } from './resources/resource.entity.js';
 import { ResourcesModule } from './resources/resources.module.js';
@@ -33,10 +35,11 @@ import { UsersModule } from './users/users.module.js';
         // boots from compiled dist output or directly from TS source (as
         // Vitest e2e specs do via unplugin-swc) — a glob only ever matched
         // compiled .js files and silently found nothing under Vitest.
-        entities: [User, Resource, ResourceSchedule],
+        entities: [User, Resource, ResourceSchedule, Reservation],
         migrations: [
           CreateUsersTable1788233211392,
           CreateResourcesTables1788256817633,
+          CreateReservationsTable1788309117211,
         ],
         synchronize: false,
         migrationsRun: true,
