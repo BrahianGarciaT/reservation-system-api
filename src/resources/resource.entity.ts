@@ -4,6 +4,7 @@ import {
   Entity,
   OneToMany,
   PrimaryGeneratedColumn,
+  type Relation,
   UpdateDateColumn,
 } from 'typeorm';
 import { ResourceSchedule } from './resource-schedule.entity.js';
@@ -43,5 +44,5 @@ export class Resource {
   @OneToMany(() => ResourceSchedule, (schedule) => schedule.resource, {
     cascade: false,
   })
-  schedules: ResourceSchedule[];
+  schedules: Relation<ResourceSchedule>[];
 }

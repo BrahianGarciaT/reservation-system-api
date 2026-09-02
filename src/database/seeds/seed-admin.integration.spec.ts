@@ -36,7 +36,10 @@ describe('seedAdmin (integration)', () => {
   });
 
   afterEach(async () => {
-    await repository.query('TRUNCATE TABLE "users"');
+    // CASCADE is required now that "reservations" holds a FK to "users":
+    // a plain TRUNCATE fails once ANY table references "users", even when
+    // no reservation rows exist yet (added by the reservations migration).
+    await repository.query('TRUNCATE TABLE "users" CASCADE');
   });
 
   it('creates exactly one admin user the first time it runs', async () => {

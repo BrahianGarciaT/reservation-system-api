@@ -5,6 +5,7 @@ import {
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
+  type Relation,
 } from 'typeorm';
 import { Resource } from './resource.entity.js';
 
@@ -20,7 +21,7 @@ export class ResourceSchedule {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'resource_id' })
-  resource: Resource;
+  resource: Relation<Resource>;
 
   @Column({ name: 'day_of_week', type: 'smallint' })
   dayOfWeek: number;
