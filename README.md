@@ -1,114 +1,192 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Reservation System API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+API para la gestión de reservas de salas de reuniones. Permite administrar el catálogo de salas disponibles (capacidad, horarios de apertura por día, amenities), a los usuarios que pueden reservarlas, y las reservas en sí — con la regla central de que dos reservas nunca pueden solaparse en el tiempo para la misma sala.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Qué resuelve
 
-## Description
+- **Salas**: alta, listado (paginado), actualización y baja lógica, cada una con su capacidad, duración mínima/máxima de reserva y horario de apertura por día de la semana.
+- **Reservas**: creación, cancelación, reprogramación y listado con filtros (por sala, por usuario, por rango de fechas, por estado) y paginación.
+- **No-solapamiento**: dos reservas activas para la misma sala nunca pueden pisarse en el tiempo — se garantiza a nivel de base de datos (constraint `EXCLUDE` de Postgres), no solo en código de aplicación.
+- **Disponibilidad**: dado un rango de fechas, se puede consultar qué huecos libres tiene una sala puntual, considerando su horario y las reservas ya confirmadas.
+- **Autenticación**: JWT con roles (`ADMIN`/`USER`). Cualquiera puede registrarse y reservar; solo un admin puede dar de alta/editar/dar de baja salas.
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Stack
 
-## Project setup
+- [NestJS](https://nestjs.com/) + TypeScript (ESM)
+- PostgreSQL + [TypeORM](https://typeorm.io/) (migraciones versionadas, sin `synchronize`)
+- Autenticación JWT (`@nestjs/passport` + `passport-jwt`)
+- Documentación OpenAPI con `@nestjs/swagger`
+- Tests con [Vitest](https://vitest.dev/) (unitarios, de integración y e2e)
+- Gestor de paquetes: **pnpm**
 
-```bash
-$ npm install
-```
+## Requisitos
 
-## Compile and run the project
+- Para correrlo con Docker: solo [Docker](https://www.docker.com/) (con Compose v2).
+- Para correrlo en local sin Docker: Node.js 24+, [pnpm](https://pnpm.io/), y una instancia de PostgreSQL 16 accesible (podés levantar solo la base con Docker y correr la app en tu máquina, ver más abajo).
+
+## Configuración
+
+Copiá el archivo de variables de entorno de ejemplo:
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+cp .env.example .env
 ```
 
-## Run tests
+| Variable             | Descripción                                                        |
+| --------------------- | ------------------------------------------------------------------- |
+| `NODE_ENV`             | `development` / `production`.                                       |
+| `PORT`                 | Puerto donde escucha la API (default `3000`).                       |
+| `DB_HOST`              | Host de Postgres. `localhost` corriendo la app en tu máquina, `db` si corrés todo con Docker Compose (ya está resuelto en el `docker-compose.yml`, no hace falta tocarlo). |
+| `DB_PORT`              | Puerto de Postgres (default `5432`).                                |
+| `DB_USERNAME`          | Usuario de Postgres.                                                |
+| `DB_PASSWORD`          | Password de Postgres.                                               |
+| `DB_NAME`              | Nombre de la base de datos.                                         |
+| `JWT_SECRET`           | Secreto para firmar los tokens JWT — cambialo en cualquier ambiente real. |
+| `JWT_EXPIRES_IN`       | Tiempo de vida del token (ej. `1h`).                                 |
+| `SEED_ADMIN_EMAIL`     | Email del usuario admin que se siembra automáticamente al arrancar. |
+| `SEED_ADMIN_PASSWORD`  | Password de ese usuario admin sembrado.                             |
+
+## Cómo correrlo
+
+### Opción A — Docker (recomendada, un solo comando)
+
+Levanta la base de datos, corre las migraciones, siembra un usuario admin (idempotente — no falla si ya existe) y arranca la API:
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+docker compose up --build
 ```
 
-## Deployment
+Al terminar de arrancar, la API queda disponible en `http://localhost:3000` (o el `PORT` que hayas configurado), con el usuario admin de `SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD` ya creado y listo para loguearse.
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+Para bajar todo: `docker compose down` (agregá `-v` si además querés borrar los datos de la base).
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+### Opción B — Ejecución local (compilando/corriendo vos mismo)
+
+1. Instalá las dependencias:
+   ```bash
+   pnpm install
+   ```
+2. Levantá solo la base de datos con Docker (o apuntá `DB_*` a una instancia propia) — ojo, `pnpm run docker:up` levanta *todo* el `docker-compose.yml` (incluido el backend en contenedor), así que para este flujo local pedí puntualmente el servicio `db`:
+   ```bash
+   docker compose up -d db
+   ```
+3. Corré la app en modo desarrollo (recarga en caliente; las migraciones corren automáticamente al bootear):
+   ```bash
+   pnpm run start:dev
+   ```
+   O compilá y corré la build de producción:
+   ```bash
+   pnpm run build
+   pnpm run start:prod
+   ```
+4. (Opcional) Sembrá el usuario admin si no vas a usar Docker Compose para eso:
+   ```bash
+   pnpm run seed:admin
+   ```
+
+La API queda igual en `http://localhost:3000`.
+
+## Documentación de la API (Swagger)
+
+Con la app corriendo, la documentación interactiva está en:
+
+- **Swagger UI**: `http://localhost:3000/docs`
+- **OpenAPI JSON**: `http://localhost:3000/docs-json`
+
+Desde ahí se puede explorar y probar cada endpoint directamente (botón **Authorize**, ver flujo de autenticación abajo). También se puede importar el JSON en Postman/Insomnia si preferís esas herramientas.
+
+Todas las rutas de negocio quedan versionadas bajo `/v1` (ej. `/v1/resources`), excepto `/health`.
+
+## Autenticación
+
+1. Registrate (crea un usuario con rol `USER`):
+   ```bash
+   curl -X POST http://localhost:3000/v1/auth/register \
+     -H "Content-Type: application/json" \
+     -d '{"email":"user@example.com","password":"Str0ngPass1"}'
+   ```
+   O usá el usuario admin ya sembrado (`SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD` de tu `.env`) para probar los endpoints que requieren rol `ADMIN`.
+
+2. Logueate para obtener el token:
+   ```bash
+   curl -X POST http://localhost:3000/v1/auth/login \
+     -H "Content-Type: application/json" \
+     -d '{"email":"user@example.com","password":"Str0ngPass1"}'
+   ```
+   Devuelve `{ "accessToken": "..." }`.
+
+3. Usalo en cada request protegido:
+   ```bash
+   curl http://localhost:3000/v1/resources \
+     -H "Authorization: Bearer <accessToken>"
+   ```
+   En Swagger UI, pegá el token en el botón **Authorize** (con o sin el prefijo `Bearer`, Swagger lo agrega solo).
+
+Solo un usuario `ADMIN` puede crear/editar/dar de baja salas; cualquier usuario autenticado puede reservar, cancelar/reprogramar sus propias reservas y consultar disponibilidad.
+
+## Recorrido rápido de la API
+
+Con `$TOKEN` seteado a un `accessToken` de admin:
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+# Crear una sala
+curl -X POST http://localhost:3000/v1/resources \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{
+    "name": "Sala Aurora",
+    "capacity": 8,
+    "minBookingMinutes": 30,
+    "maxBookingMinutes": 240,
+    "schedules": [{ "dayOfWeek": 1, "openTime": "09:00", "closeTime": "18:00" }]
+  }'
+
+# Listar salas (paginado)
+curl "http://localhost:3000/v1/resources?page=1&limit=20" -H "Authorization: Bearer $TOKEN"
+
+# Consultar disponibilidad de una sala en un rango de fechas
+curl "http://localhost:3000/v1/resources/<resourceId>/availability?from=2026-09-07T00:00:00.000Z&to=2026-09-14T00:00:00.000Z" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Crear una reserva
+curl -X POST http://localhost:3000/v1/reservations \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{
+    "resourceId": "<resourceId>",
+    "startsAt": "2026-09-07T14:00:00.000Z",
+    "endsAt": "2026-09-07T15:00:00.000Z"
+  }'
+
+# Listar reservas con filtros y paginación
+curl "http://localhost:3000/v1/reservations?resourceId=<resourceId>&status=confirmed&page=1&limit=20" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Cancelar una reserva
+curl -X PATCH http://localhost:3000/v1/reservations/<reservationId>/cancel \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+El detalle completo de cada endpoint (parámetros, DTOs, códigos de error) está en Swagger UI.
 
-## Observability
+## Tests
 
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
+```bash
+pnpm run test        # unitarios + integración
+pnpm run test:e2e    # end-to-end, contra una base de datos real
+pnpm run test:cov    # con cobertura
+pnpm run lint         # oxlint
+```
 
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
+Los tests de integración y e2e necesitan una base de datos real disponible (`pnpm run docker:up` la levanta).
 
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
+## Estructura del proyecto
 
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observer](https://observer.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+```
+src/
+├── auth/          # JWT, login/registro, guards y decoradores de roles
+├── users/         # Modelo de usuario
+├── resources/     # Salas: CRUD, horarios, disponibilidad
+├── reservations/  # Reservas: creación, cancelación, reprogramación, listado
+├── health/        # Health check
+├── common/        # DTOs y utilidades compartidas (paginación, manejo de fechas)
+└── database/      # Migraciones y seed de admin
+```
