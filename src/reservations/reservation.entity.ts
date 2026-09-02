@@ -5,6 +5,7 @@ import {
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
+  type Relation,
   UpdateDateColumn,
 } from 'typeorm';
 import { Resource } from '../resources/resource.entity.js';
@@ -21,14 +22,14 @@ export class Reservation {
 
   @ManyToOne(() => Resource, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'resource_id' })
-  resource: Resource;
+  resource: Relation<Resource>;
 
   @Column({ name: 'user_id', type: 'uuid' })
   userId: string;
 
   @ManyToOne(() => User, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'user_id' })
-  user: User;
+  user: Relation<User>;
 
   @Column({ name: 'starts_at', type: 'timestamptz' })
   startsAt: Date;
