@@ -4,8 +4,10 @@ import {
   HealthCheckService,
   TypeOrmHealthIndicator,
 } from '@nestjs/terminus';
+import { ApiTags } from '@nestjs/swagger';
 import { Public } from '../auth/decorators/public.decorator.js';
 
+@ApiTags('health')
 @Controller({ path: 'health', version: VERSION_NEUTRAL })
 export class HealthController {
   constructor(

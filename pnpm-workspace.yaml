@@ -1,4 +1,5 @@
 allowBuilds:
+  '@scarf/scarf': true
   '@swc/core': true
   bcrypt: true
 minimumReleaseAgeExclude:
